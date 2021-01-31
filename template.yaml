@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+
+Parameters:
+  BacketName:
+    Type: String
+    Default: ot-nemoto.aws-cloudformation-templates
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BacketName
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+        - Action:
+          - s3:GetObject
+          Effect: Allow
+          Resource: !Sub 'arn:aws:s3:::${Bucket}/*'
+          Principal: '*'
+  Connection:
+    Type: AWS::CodeStarConnections::Connection
+    Properties:
+      ConnectionName: GitHub Connection
+      ProviderType: GitHub
+  PipelineBucket:
+    Type: AWS::S3::Bucket
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+          Action: sts:AssumeRole
+      Path: /service-role/
+  PipelinePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Ref PipelineRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Action: iam:PassRole
+          Effect: Allow
+          Resource: '*'
+          Condition:
+            StringEqualsIfExists:
+              iam:PassedToService:
+              - cloudformation.amazonaws.com
+              - elasticbeanstalk.amazonaws.com
+              - ec2.amazonaws.com
+              - ecs-tasks.amazonaws.com
+        - Action:
+          - codecommit:CancelUploadArchive
+          - codecommit:GetBranch
+          - codecommit:GetCommit
+          - codecommit:GetRepository
+          - codecommit:GetUploadArchiveStatus
+          - codecommit:UploadArchive
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - codedeploy:CreateDeployment
+          - codedeploy:GetApplication
+          - codedeploy:GetApplicationRevision
+          - codedeploy:GetDeployment
+          - codedeploy:GetDeploymentConfig
+          - codedeploy:RegisterApplicationRevision
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - codestar-connections:UseConnection
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - 'elasticbeanstalk:*'
+          - 'ec2:*'
+          - 'elasticloadbalancing:*'
+          - 'autoscaling:*'
+          - 'cloudwatch:*'
+          - 's3:*'
+          - 'sns:*'
+          - 'cloudformation:*'
+          - 'rds:*'
+          - 'sqs:*'
+          - 'ecs:*'
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - lambda:InvokeFunction
+          - lambda:ListFunctions
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - opsworks:CreateDeployment
+          - opsworks:DescribeApps
+          - opsworks:DescribeCommands
+          - opsworks:DescribeDeployments
+          - opsworks:DescribeInstances
+          - opsworks:DescribeStacks
+          - opsworks:UpdateApp
+          - opsworks:UpdateStack
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - cloudformation:CreateStack
+          - cloudformation:DeleteStack
+          - cloudformation:DescribeStacks
+          - cloudformation:UpdateStack
+          - cloudformation:CreateChangeSet
+          - cloudformation:DeleteChangeSet
+          - cloudformation:DescribeChangeSet
+          - cloudformation:ExecuteChangeSet
+          - cloudformation:SetStackPolicy
+          - cloudformation:ValidateTemplate
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - codebuild:BatchGetBuilds
+          - codebuild:StartBuild
+          - codebuild:BatchGetBuildBatches
+          - codebuild:StartBuildBatch
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - devicefarm:ListProjects
+          - devicefarm:ListDevicePools
+          - devicefarm:GetRun
+          - devicefarm:GetUpload
+          - devicefarm:CreateUpload
+          - devicefarm:ScheduleRun
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - servicecatalog:ListProvisioningArtifacts
+          - servicecatalog:CreateProvisioningArtifact
+          - servicecatalog:DescribeProvisioningArtifact
+          - servicecatalog:DeleteProvisioningArtifact
+          - servicecatalog:UpdateProduct
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - cloudformation:ValidateTemplate
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - ecr:DescribeImages
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - states:DescribeExecution
+          - states:DescribeStateMachine
+          - states:StartExecution
+          Effect: Allow
+          Resource: '*'
+        - Action:
+          - appconfig:StartDeployment
+          - appconfig:StopDeployment
+          - appconfig:GetDeployment
+          Effect: Allow
+          Resource: '*'
+      Roles:
+      - !Ref PipelineRole
+  Pipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Type: S3
+        Location: !Ref PipelineBucket
+      RoleArn: !GetAtt PipelineRole.Arn
+      Stages:
+      - Name: Source
+        Actions:
+        - Name: Source
+          ActionTypeId:
+            Category: Source
+            Owner: AWS
+            Provider: CodeStarSourceConnection
+            Version: 1
+          Configuration:
+            ConnectionArn: !Ref Connection
+            FullRepositoryId: ot-nemoto/aws-cloudformation-templates
+            BranchName: master
+          OutputArtifacts:
+          - Name: SourceArtifact
+      - Name: Deploy
+        Actions:
+        - Name: Deploy
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: S3
+            Version: 1
+          Configuration:
+            BucketName: !Ref Bucket
+            Extract: True
+          InputArtifacts:
+          - Name: SourceArtifact
+
+Outputs:
+  S3BucketSecureURL:
+    Value: !Sub https://s3-${AWS::Region}.amazonaws.com/${Bucket}/
+  ConnectionURL:
+    Value: !Join
+    - ''
+    - - !Sub https://${AWS::Region}.console.aws.amazon.com/codesuite/settings/057277270631/${AWS::Region}/connections/
+      - !Select [1, !Split ['/', !Ref Connection]]
