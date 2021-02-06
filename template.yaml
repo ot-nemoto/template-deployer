@@ -168,6 +168,61 @@ Resources:
           Resource: '*'
       Roles:
       - !Ref PipelineRole
+  CodeBuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codebuild.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: /service-role/
+  CodeBuildPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Ref CodeBuildRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - logs:CreateLogGroup
+          - logs:CreateLogStream
+          - logs:PutLogEvents
+          Resource:
+          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp'
+          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp:*'
+        - Action: 'S3:*'
+          Effect: Allow
+          Resource: '*'
+      Roles:
+      - !Ref CodeBuildRole
+  CodeBuild:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: CleanUp
+      ServiceRole: !GetAtt CodeBuildRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            build:
+              commands:
+              - aws s3 rm s3://${Bucket} --recursive
+          artifacts:
+            files:
+            - '**/*.yaml'
   Pipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -190,6 +245,20 @@ Resources:
             BranchName: master
           OutputArtifacts:
           - Name: SourceArtifact
+      - Name: CleanUp
+        Actions:
+        - Name: CleanUp
+          ActionTypeId:
+            Category: Build
+            Owner: AWS
+            Provider: CodeBuild
+            Version: 1
+          InputArtifacts:
+          - Name: SourceArtifact
+          OutputArtifacts:
+          - Name: BuildArtifact
+          Configuration:
+            ProjectName: !Ref CodeBuild
       - Name: Deploy
         Actions:
         - Name: Deploy
@@ -202,7 +271,7 @@ Resources:
             BucketName: !Ref Bucket
             Extract: True
           InputArtifacts:
-          - Name: SourceArtifact
+          - Name: BuildArtifact
 
 Outputs:
   S3BucketSecureURL:
