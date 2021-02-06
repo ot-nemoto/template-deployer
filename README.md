@@ -1,5 +1,7 @@
 # template-deployer
 
+- [ot-nemoto/aws-cloudformation-templates](https://github.com/ot-nemoto/aws-cloudformation-templates) のテンプレートをmasterにコミットした際に、自動でS3のBucket(ot-nemoto.aws-cloudformation-templates)へデプロイするためだけのやつ。
+
 ## architecture
 
 ## parameters
