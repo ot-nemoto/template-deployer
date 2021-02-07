@@ -4,6 +4,10 @@
 
 ## architecture
 
+![architecture](https://github.com/ot-nemoto/template-deployer/blob/images/template-deployer.png)
+
+- CodeBuildではS3Bucketを一旦削除し、yamlファイルのみS3Bucketにdeploy
+
 ## parameters
 
 |Name|Type|Description|Default|
