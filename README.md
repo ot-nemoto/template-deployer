@@ -13,6 +13,9 @@
 |Name|Type|Description|Default|
 |--|--|--|--|
 |BucketName|String|ot-nemoto.aws-cloudformation-templates|The name of the bucket to store the template.|
+|BucketAllowSourceIps|List\<String>|0.0.0.0/0||
+|RepositoryName|String|ot-nemoto/aws-cloudformation-templates||
+|RepositoryBranchName|String|master||
 
 ## deploy
 

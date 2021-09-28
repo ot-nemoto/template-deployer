@@ -1,15 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
 
 Parameters:
-  BacketName:
+  BucketName:
     Type: String
     Default: ot-nemoto.aws-cloudformation-templates
+  BucketAllowSourceIps:
+    Type: List<String>
+    Default: 0.0.0.0/0
+  RepositoryName:
+    Type: String
+    Default: ot-nemoto/aws-cloudformation-templates
+  RepositoryBranchName:
+    Type: String
+    Default: master
 
 Resources:
   Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref BacketName
+      BucketName: !Ref BucketName
   BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -21,10 +30,13 @@ Resources:
           Effect: Allow
           Resource: !Sub 'arn:aws:s3:::${Bucket}/*'
           Principal: '*'
+          Condition:
+            IpAddress:
+              aws:SourceIp: !Ref BucketAllowSourceIps
   Connection:
     Type: AWS::CodeStarConnections::Connection
     Properties:
-      ConnectionName: GitHub Connection
+      ConnectionName: !Sub ${AWS::StackName}
       ProviderType: GitHub
   PipelineBucket:
     Type: AWS::S3::Bucket
@@ -194,8 +206,8 @@ Resources:
           - logs:CreateLogStream
           - logs:PutLogEvents
           Resource:
-          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp'
-          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp:*'
+          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp-${AWS::StackName}'
+          - !Sub 'arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/CleanUp-${AWS::StackName}:*'
         - Action: 'S3:*'
           Effect: Allow
           Resource: '*'
@@ -204,7 +216,7 @@ Resources:
   CodeBuild:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: CleanUp
+      Name: !Sub CleanUp-${AWS::StackName}
       ServiceRole: !GetAtt CodeBuildRole.Arn
       Artifacts:
         Type: CODEPIPELINE
@@ -241,8 +253,8 @@ Resources:
             Version: 1
           Configuration:
             ConnectionArn: !Ref Connection
-            FullRepositoryId: ot-nemoto/aws-cloudformation-templates
-            BranchName: master
+            FullRepositoryId: !Ref RepositoryName
+            BranchName: !Ref RepositoryBranchName
           OutputArtifacts:
           - Name: SourceArtifact
       - Name: CleanUp
@@ -279,5 +291,5 @@ Outputs:
   ConnectionURL:
     Value: !Join
     - ''
-    - - !Sub https://${AWS::Region}.console.aws.amazon.com/codesuite/settings/057277270631/${AWS::Region}/connections/
+    - - !Sub https://${AWS::Region}.console.aws.amazon.com/codesuite/settings/${AWS::AccountId}/${AWS::Region}/connections/
       - !Select [1, !Split ['/', !Ref Connection]]
